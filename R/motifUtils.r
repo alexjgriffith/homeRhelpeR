@@ -1,4 +1,4 @@
-o#!/usr/bin/env R
+#!/usr/bin/env R
 #
 # This file is part of mulcal,
 # http://github.com/alexjgriffith/CCCA/, 
@@ -240,7 +240,7 @@ motifString<-function(x){
 #' #homerWrapper(allData,objEryt,objTALL,
 #' #             "~/Masters/mulcal/inst/lib/homer-4.7/bin/homer2",
 #' #             inst/data/eryt_jurk_1.pwm)
-PWMtoCons<-function(x)
-    consesnusIUPAC(motifString(x))
+pwm2consensus<-function(x)
+    consensusIUPAC(motifString(x))
 
 

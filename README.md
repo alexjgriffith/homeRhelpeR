@@ -33,8 +33,11 @@ library(BSgenome.Hsapiens.UCSC.hg19)
 ## location of executable on your system
 homer="~/binaries/homer/bin/homer2"
 ## Bed files for the foreground and background
-fg<-read.table("foreground.bed",header=T,comment=NULL)
-bg<-read.table("background.bed",header=T,comment=NULL)
+foregroundFile<-system.file("/extdata/leukemia.bed",package="homeRhelpeR")
+backgroundFile<-system.file("/extdata/background.bed",package="homeRhelpeR")
+
+fg<-read.table(foregroundFile,header=T,comment=NULL)
+bg<-read.table(backgroundFile,header=T,comment=NULL)
 bed<-rbind(fg,bg)
 ## find the neucleotide info for the bed files
 fasta<-getSeq(BSgenome.Hsapiens.UCSC.hg19,bed$chr,
