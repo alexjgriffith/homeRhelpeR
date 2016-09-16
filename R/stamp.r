@@ -30,9 +30,9 @@ stampWrapper<-function(motifFile,comparator,name=motifFile,...){
         if(length(c)==0)
             break
         eScores<-as.numeric(unlist(lapply(grep("width=\"75\"",strsplit(c,"</TD>")[[1]],value=TRUE),function(x) strsplit(x,">")[[1]][2]))[2:6])
-        genes<-unlist(lapply(grep("width=\"175\"",strsplit(c,"</TD>")[[1]],value=TRUE),function(x) strsplit(x,">")[[1]][2]))[2:6]
+        ann<-unlist(lapply(grep("width=\"175\"",strsplit(c,"</TD>")[[1]],value=TRUE),function(x) strsplit(x,">")[[1]][2]))[2:6]
     motif<-unlist(strsplit(grep("<strong>",strsplit(c,"</strong></")[[1]],value=TRUE),">"))
-        t<-data.frame(motif=motif[length(motif)],rank=seq(5),genes=genes,escore=eScores,dataset=name,comparator=comparator)
+        t<-data.frame(motif=motif[length(motif)],rank=seq(5),ann=ann,escore=eScores,dataset=name,comparator=comparator)
         motifData<-rbind(motifData,t)
     }
     motifData

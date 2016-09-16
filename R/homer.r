@@ -89,6 +89,8 @@ findRank<-function(list){
 
 #' @export
 homer<-function(header,pwm,rank=0,contents=names(header)){
+    if(any(is.nan(pwm)))
+        return(NA)
     ret<-list(header=header,pwm=pwm,contents=contents,
               pvalues=header$pvalue,name=header$name,score=header$score,
               motif=pwm2consensus(t(pwm)),
@@ -126,10 +128,39 @@ as.list.homer<-function(x){
     getPwm.homer(x))
 }
 #' @export
-mergeMotifLists<-function(...){
+bindMotifLists<-function(...){
     x<-as.list(...)
     ret<-as.list(do.call(c,x))
     names(ret)<-sapply(ret,function(x) x$names)
     class(ret)<-"motifList"
+    ret
+}
+
+#' @export
+mergeMotifLists<-function(homerData,h=0.8){
+    orderBy<-function(obj,value,process=function(x){x}){
+        order(sapply(obj,function(x)
+            process(x[[value]])))
+    }
+
+    selectMin<-function(obj,index,value,process=function(x){x}){
+        i<-which.min(sapply(obj[index],function(x)
+            process(x[[value]])))
+        obj[[which(index)[i]]]
+    }
+    if(class(homerData)!="motifList")
+        mhome<-bindMotifLists(homerData)
+    else
+        mhome<-homerData
+    pmots<-trimMotif(sapply(mhome,getCons.homer))
+    sel<-sapply(pmots,function(x) nchar(x)>4)
+    dist<-clusterMotifs(pmots[sel])
+    hc<-hclust(dist,"complete")
+    groups<-cutree(hc,h=h)
+    ret<-lapply(seq(max(groups)),function(i){
+        selectMin(mhome[sel],groups==i,"pvalues",function(x) exp(as.numeric(x)))})
+    ord<-orderBy(ret,"pvalues",function(x) exp(as.numeric(x)))
+    ret<-ret[ord]
+    class(ret)<-"motifList"    
     ret
 }

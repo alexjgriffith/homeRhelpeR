@@ -71,23 +71,147 @@ homerData<-lapply(fileLocs,read.homer)
 
 names(homerData)<-fileLocs
 
+
+library(stringr)
+library(httr)
+
 source("~/r-workspace/project/ccca.r")
 source("~/r-workspace/project/project.r")
 source("~/r-workspace/project/project-variables.r")
 
+
+mergeHomer(homerData[[1]])
+
+par(mfrow=c(2,2))
+
+
+names(MOTS[[1]])[MOTS[[1]]==1]
+
+
 PCA<-lapply(contexts,function(cont){
     reg<-grepl(cont,fileLocs) & grepl("PCA",fileLocs)
-    mots<-unique(Filter(function(x) nchar(x)>0, trimMotif(sapply(mergeMotifLists(homerData[reg]),getCons.homer))))
+    mots<-unique(Filter(function(x) nchar(x)>4, trimMotif(sapply(mergeMotifLists(homerData[reg]),getCons.homer))))
     print(mots)
-    combineClusterdMotifs(clusterMotifs(mots),mots,min(length(mots),25))
-    #motifs2Homer(ccca$fasta[ccca$reg[,cont]],ccca$fasta[ccca$reg[,"NONE"]],res)
+    combineClusterdMotifs(clusterMotifs(mots),mots,0.7)
 })
+
+names(PCA)<-contexts
 
 motifs<-mapply(function(cont,x) motifs2Homer(ccca$fasta[ccca$reg[,cont]],ccca$fasta[ccca$reg[,"NONE"]],x),contexts,PCA,SIMPLIFY=FALSE)
 
+stamp<-local({    
+    stampdb<-mapply(function(mots,name){
+        rmna<-mots[sapply(mots,function(x) !all(is.na(x)))]
+        homerStamp.motifList(rmna,c("JASPAR_Fams","TRANSFAC_Fams"),name)}
+                   ,motifs,contexts,SIMPLIFY=FALSE)
+    names(stampdb)<-contexts
+    save(stampdb,file="~/Dropbox/Data/PCAStamp.RData")
+    stampdb
+})
+
+ts<-homerStamp.motifList(motifs[[1]],c("JASPAR_Fams"),"test")
+
+
+ts
+
+ts
+
+library(xlsx)
+
+saveMultiXLS(stamp,motifs,"~/Desktop/test.xlsx")
+
+#myms<-msa(mots,type="dna",cluster="upgma")
 
 
 library(httr)
-library("homeRhelpeR")
+#library("homeRhelpeR")
 
-homerStamp.motifList(motifs[[1]],c("JASPAR_Fams","TRANSFAC_Fams"),)
+## Fix the issue with the homerStamp method (stamp returning motifs
+## out of order
+a<-stamp[[1]][,1:6]
+
+b<-stamp[[1]][,7:10]
+
+pb<-switchAttr(b[!duplicated(b[,1]),],"motif","tmotif")
+
+merge(a,pb)[,c("motif","name2")]
+
+
+a<-ts[,1:6]
+
+b<-ts[,7:10]
+
+pb<-switchAttr(b[!duplicated(b[,1]),],"motif","tmotif")
+
+merge(a,b)
+
+
+[,c("motif","name2")]
+
+switchAttr<-function(obj,name,oldid,attr="names"){
+    oldattr<-attributes(obj)
+    oldnames<-oldattr[[attr]]
+    if(is.null(oldnames)){
+        warning(attr," is not a valid attribute of obj")
+        return(obj)
+    }
+    if(! any(oldnames==oldid)){
+        warning(oldid," not in obj ",attr)
+        return(obj)
+    }
+    oldnames[oldnames==oldid]<-name
+    oldattr[[attr]]<-oldnames
+    `attributes<-`(obj,oldattr)        
+}
+
+
+
+
+n<-lapply(mots,function(m)    
+unlist(lapply(getKmers(m,4),IUPACtoBase,TRUE)))
+
+kmers<-function(n){
+    IUPACtoBase(do.call(paste0,as.list(rep("N",n))),TRUE)
+}
+
+library(stringr)
+
+reg<-grepl("Erythroid",fileLocs) & grepl("PCA",fileLocs)
+mots<-unique(Filter(function(x) nchar(x)>4, trimMotif(sapply(mergeMotifLists(homerData[reg]),getCons.homer))))
+
+n<-str_match_all(sapply(mots,IUPACtoBase,TRUE),paste0(kmers(4),collapse="|"))
+
+Xs<-outer(n,n,Vectorize(function(a,b) 1-length(intersect(a,b))/length(union(a,b))))
+
+colnames(Xs)<-mots
+rownames(Xs)<-mots
+
+dist<-as.dist(Xs)
+
+hc<-hclust(dist,"complete")
+a<-cutree(hc,h=0.8)
+
+
+
+
+
+dist<-clusterMotifs(mots)
+
+combineClusterdMotifs(dist,mots,0.8)
+
+hc<-hclust(1/(clust+1),"average")
+
+plot(hc,hang=-1)
+
+lines(rep(0.2,56))
+
+cutree(hc,h=0.2)
+
+library("xlsx")
+
+
+library(combinat)
+
+file<-("~/Desktop/test.xlsx")
+
+

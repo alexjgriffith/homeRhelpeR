@@ -1,5 +1,5 @@
 ## combineClusterdMotifs
-## mergeBase
+## mergeistsBase
 ## mergeConsensus
 ## consensus2pwm
 ## addMotifHeader
@@ -24,30 +24,71 @@ trimMotif<-function(motifs){
     gsub("^N*|N*$","",motifs)
 }
 
+
 #' @export
-clusterMotifs<-function(consMots){
+getKmers<-function(motif,n){
+    mspl<-strsplit(motif,"")[[1]]
+    len<-length(mspl)
+    if(len<n)
+        stop("motif length must be greater than n")
+    else if(len==n)
+        return (motif)
+    else{
+
+        return (sapply(seq(len-n+1),function(i) paste0(mspl[i:(i+n-1)],collapse="")))
+    }
+}
+
+orient<-function(motifs){
     require(Biostrings)
-    comb<-t(combn(consMots,2))
-    as<-apply(comb,1,function(x) pairwiseAlignment(x[1],x[2],scoreOnly=TRUE))
-    Xs<-matrix(0,ncol=length(consMots),nrow=length(consMots))
-    Xs[lower.tri(Xs)]<-as
-    rownames(Xs)<-consMots
-    colnames(Xs)<-consMots
-    as.dist(Xs)
+    if(length(motifs)==1)
+        return (motifs)
+    orient<-mapply(function(x,y){
+        z<-consensusIUPAC(complement(IUPACtoBase(y)))
+        evoDist(x,y)>evoDist(x,z)
+    },motifs[1:length(motifs)-1],motifs[2:length(motifs)])
+    names(orient)<-NULL
+    reg<-as.logical(c(0,Reduce(function(a,b) {sum(a,b)%%2} ,orient,accumulate=TRUE)))
+    ret<-motifs
+    ret[reg]<-sapply(motifs[reg],function(y) consensusIUPAC(complement(IUPACtoBase(y))))
+    unlist(ret)
+}
+
+evoDist<-function(a,b){
+    n<-lapply(list(a,b),function(m)    
+        unlist(lapply(getKmers(m,4),IUPACtoBase,TRUE)))
+    1-length(intersect(n[[1]],n[[2]]))/length(union(n[[1]],n[[2]]))
 }
 
 #' @export
-combineClusterdMotifs<-function(distance,names,k=length(names)/2){
+clusterMotifs<-function(mots){
+    n<-lapply(mots,function(m)    
+        unlist(lapply(getKmers(m,4),IUPACtoBase,TRUE)))
+    n<-lapply(n,function(x) union(x,sapply(x,complement)))
+    Xs<-outer(n,n,Vectorize(function(a,b) 1-length(intersect(a,b))/length(union(a,b)))) 
+    colnames(Xs)<-mots
+    rownames(Xs)<-mots
+    dist<-as.dist(Xs)
+}
+
+#' @export
+combineClusterdMotifs<-function(distance,names,h=0.3){
     require(msa)
     ns<-unique(names)
     if(length(ns)!=length(names))
         stop("names must share dimensions with distance")
-    clust<-hclust(distance,method="ward.D2")
-    regs<-cutree(clust,k=k)
-    sapply(seq(k),
+    ##clust<-hclust(distance,method="ward.D2")
+    ##clust<-hclust(1/(distance+1),"average")
+    clust<-hclust(distance,"complete")
+    ##regs<-cutree(clust,k=k)
+    #plot(clust,hang=-1)
+    regs<-cutree(clust,h=h) 
+    sapply(seq(length(unique(regs))),
            function(i){
-               if(length(ns[regs==i])>1){                   
-                   log<-capture.output({samp<-consensusMatrix(msa(ns[regs==i],type="dna"))})
+               if(length(ns[regs==i])>1){
+                   #print(orient(ns[regs==i]))
+                   log<-capture.output({                       
+                   samp<-consensusMatrix(msa(orient(ns[regs==i]),type="dna"))})
                    mergeConsensus(samp)
                    
                }
@@ -120,9 +161,9 @@ countMotifs<-function(sequence,motifs){
 }
 
 countMotifsOne<-function(sequence,motifs){
-    oprsfor<-IUPACtoBase(motifs,TRUE)
-    oprsrev<-sapply(oprsfor,complement)
-    ops<-paste(oprsrev,oprsfor,collapse="|",sep="|")
+    oprsfor<-IUPACtoBase(motifs)
+    oprsrev<-complement(oprsfor)
+    ops<-paste(unique(c(oprsfor,oprsrev)),collapse="|",sep="|")
     sum(grepl(ops,sequence))
     
 }
@@ -210,7 +251,7 @@ motifs2Homer<-function(fg,bg,mots){
     ranks<-rank(sapply(summary,function(x) x$header$pvalue),ties.method="first")
     pwm<-lapply(summary,function(x) x[["pwm"]])
     header<-lapply(summary,function(x) x[["header"]])
-    contents<-c("consensus","name","score","pvalue","gapped","pstring")
+    contents<-c("consensus","name","score","pvalues","gapped","pstring")
     ret<-mapply(homer,header,pwm,ranks,SIMPLIFY=FALSE,MoreArgs=list(contents=contents))
     class(ret)<-"motifList"
     ret
@@ -225,7 +266,7 @@ write.motifList<-function(x,file){
 #' @export
 print.motifList<-function(x,...){
                                         #lapply(x,print
-    cat(sapply(x,addMotifHeader.homer),sep="")
+    cat(sapply( x,addMotifHeader.homer),sep="")
 }
 
 #' @export
@@ -244,15 +285,18 @@ print.homer<-function(x,...){
 homerStamp.default<-function(homerFile,dbs,...){
     homerMotifs<-read.homer(homerFile)
     ann<-lapply(dbs,function(db) stampWrapper(homerFile,db,...))
+    a<-do.call(rbind,ann)
     pcasum<-do.call(rbind,lapply(homerMotifs,function(x)c(x[c("name","motif","rank")],exp(as.numeric(x["pvalues"])))))
-    
-    colnames(pcasum)<-c("name","motif","rank","pvalues")
+    colnames(pcasum)<-c("name2","motif","order","pvalues")
+                                        #b<-as.data.frame(
+    b<-data.frame(name2=unlist(pcasum[,1]),
+                   motif=unlist(pcasum[,2]),
+                   order=unlist(pcasum[,3]),
+                  pvalues=unlist(pcasum[,4]))
+    a<-as.data.frame(a)#c[,1:6]
+    c<-merge(a,b)
+    c[order(c$comparator,c$pvalues,c$rank),]
 
-    cbind(do.call(rbind,ann),name2=unlist(lapply(pcasum[,"name"],rep,5)),
-          tmotif=unlist(lapply(pcasum[,"motif"],rep,5)),
-          order=unlist(lapply(pcasum[,"rank"],rep,5)),
-          pvalues=unlist(lapply(pcasum[,"pvalues"],rep,5))
-          )
 }
 
 #' @export
